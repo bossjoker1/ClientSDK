@@ -3,6 +3,7 @@ package ClientSDK
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -31,14 +32,19 @@ func ClientSend(method string, router string, filePath string, model UidModel) [
 		return nil
 	}
 
+	var (
+		Resp_Bytes []byte
+		err        error
+	)
+
 	switch strings.ToLower(method) {
 	case "download":
-		err := DownloadFile(model.GetUid(), router)
+		Resp_Bytes, err = downloadFile(model.GetUid(), router)
 		if err != nil {
 			log.Printf("download the file failed. %v\n", err)
 		}
 	case "pull":
-		err := PersonalizedPull(model.GetUid(), router, model.PersonalizedPull())
+		Resp_Bytes, err = personalizedPull(model.GetUid(), router, model.PersonalizedPull())
 		if err != nil {
 			log.Printf("Get the personalized config file failed. %v\n", err)
 		}
@@ -51,13 +57,13 @@ func ClientSend(method string, router string, filePath string, model UidModel) [
 				// uid为空则将文件传入默认目录下
 				uid = "default"
 			}
-			err := postFile(filePath, router, uid)
+			Resp_Bytes, err = postFile(filePath, router, uid)
 			if err != nil {
 				log.Printf("post the file to server failed. %v\n", err)
 			}
 		}
 	case "put":
-		err := UpdateConfigFile(model.GetUid(), router, model.Update())
+		Resp_Bytes, err = updateConfigFile(model.GetUid(), router, model.Update())
 		if err != nil {
 			log.Printf("update the config file failed. %v\n", err)
 		}
@@ -65,7 +71,7 @@ func ClientSend(method string, router string, filePath string, model UidModel) [
 		log.Println("unknown method.(GET/POST/PUT)")
 	}
 
-	return nil
+	return Resp_Bytes
 }
 
 // 提供一个获取本机Mac作为uid的函数供调用
@@ -85,13 +91,13 @@ func GetMac() string {
 	return ""
 }
 
-func PersonalizedPull(uid string, targetUrl string, fields []string) error {
+func personalizedPull(uid string, targetUrl string, fields []string) ([]byte, error) {
 	params := url.Values{}
 
 	Url, err := url.Parse(targetUrl)
 	if err != nil {
 		log.Printf("url parse failed. %v\n", err)
-		return err
+		return nil, err
 	}
 	params.Set("uid", uid)
 	//如果参数中有中文参数,这个方法会进行URLEncode
@@ -113,16 +119,16 @@ func PersonalizedPull(uid string, targetUrl string, fields []string) error {
 	res_body, err := ioutil.ReadAll(resp.Body)
 	fmt.Println(resp.Status)
 	fmt.Println(string(res_body))
-	return err
+	return res_body, err
 }
 
-func UpdateConfigFile(uid string, targetUrl string, fields map[string]interface{}) error {
+func updateConfigFile(uid string, targetUrl string, fields map[string]interface{}) ([]byte, error) {
 	params := url.Values{}
 
 	Url, err := url.Parse(targetUrl)
 	if err != nil {
 		log.Printf("url parse failed. %v\n", err)
-		return err
+		return nil, err
 	}
 	params.Set("uid", uid)
 	//如果参数中有中文参数,这个方法会进行URLEncode
@@ -144,16 +150,16 @@ func UpdateConfigFile(uid string, targetUrl string, fields map[string]interface{
 	res_body, err := ioutil.ReadAll(resp.Body)
 	fmt.Println(resp.Status)
 	fmt.Println(string(res_body))
-	return err
+	return res_body, err
 }
 
 // 下载文件
 // 1. 传入uid参数和文件名称
 // 2. 没有uid，则通过文件名称，在default目录下找
-func DownloadFile(uid, targetUrl string) error {
+func downloadFile(uid, targetUrl string) ([]byte, error) {
 	if uid == "" {
 		log.Printf("incorrect params.")
-		return nil
+		return nil, errors.New("incorrect params")
 	}
 
 	params := url.Values{}
@@ -161,7 +167,7 @@ func DownloadFile(uid, targetUrl string) error {
 	Url, err := url.Parse(targetUrl)
 	if err != nil {
 		log.Printf("url parse failed. %v\n", err)
-		return err
+		return nil, err
 	}
 	params.Set("uid", uid)
 	//如果参数中有中文参数,这个方法会进行URLEncode
@@ -172,12 +178,12 @@ func DownloadFile(uid, targetUrl string) error {
 	res_body, err := ioutil.ReadAll(resp.Body)
 	fmt.Println(resp.Status)
 	fmt.Println(string(res_body))
-	return err
+	return res_body, err
 }
 
 // 实现postman表单上传文件
 // filePath : 客户端上传文件的本地路径
-func postFile(filePath string, targetUrl string, uid string) error {
+func postFile(filePath string, targetUrl string, uid string) ([]byte, error) {
 
 	bodyBuf := &bytes.Buffer{}
 	bodyWriter := multipart.NewWriter(bodyBuf)
@@ -188,20 +194,20 @@ func postFile(filePath string, targetUrl string, uid string) error {
 	fileWriter, err := bodyWriter.CreateFormFile("file", "config.properties")
 	if err != nil {
 		fmt.Println("error writing to buffer")
-		return err
+		return nil, err
 	}
 
 	//打开文件句柄操作
 	fh, err := os.Open(filePath)
 	if err != nil {
 		fmt.Println("error opening file")
-		return err
+		return nil, err
 	}
 	defer fh.Close()
 
 	_, err = io.Copy(fileWriter, fh)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// 添加其他参数
 	param := map[string]string{}
@@ -217,14 +223,14 @@ func postFile(filePath string, targetUrl string, uid string) error {
 
 	resp, err := http.Post(targetUrl, contentType, bodyBuf)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	resp_body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Println(resp.Status)
 	fmt.Println(string(resp_body))
-	return nil
+	return resp_body, nil
 }
