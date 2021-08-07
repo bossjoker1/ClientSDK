@@ -1,6 +1,13 @@
 # ClientSDK
 a go module for client
 
+usage:
+
+```go
+go get github.com/bossjoker1/ClientSDK@v0.1.0
+```
+
+在package中 `import "github.com/bossjoker1/ClientSDK"`
 
 you can use this module to send get/post/put requests.
 
