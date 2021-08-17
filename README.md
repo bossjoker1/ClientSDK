@@ -9,7 +9,7 @@ go get github.com/bossjoker1/ClientSDK@v0.1.0
 
 in package `import "github.com/bossjoker1/ClientSDK"`
 
-you can use this module to send get/post/put requests. [Corresponding server-side repositary](https://github.com/bossjoker1/RCM_CS)
+you can use this module to send get/post/put requests. [Corresponding server-side repository](https://github.com/bossjoker1/RCM_CS)
 
 We think that the 'model' implements the defined interface.
 
